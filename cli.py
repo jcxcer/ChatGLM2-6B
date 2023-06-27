@@ -28,8 +28,7 @@ def main():
         conversation_key = sys.argv[2]
         history = loadHistory(conversation_key)
 
-    for response, history in model.stream_chat(tokenizer, query, history=history):
-        pass
+    response, history = model.stream_chat(tokenizer, query, history=history)
     # print(history)
 
     if conversation_key!="":
