@@ -25,7 +25,7 @@ ChatGLM2-6B 开源模型旨在与开源社区一起推动大模型技术发展�
 尽管模型在训练的各个阶段都尽力确保数据的合规性和准确性，但由于 ChatGLM2-6B 模型规模较小，且模型受概率随机性因素影响，无法保证输出内容的准确性，且模型易被误导。**本项目不承担开源模型和代码导致的数据安全、舆情风险或发生任何模型被误导、滥用、传播、不当利用而产生的风险和责任。**
 
 ## 评测结果
-我们选取了部分中英文典型数据集进行了评测，以下为 ChatGLM2-6B 模型在 [MMLU](https://github.com/hendrycks/test) (英文)、[C-Eval](https://cevalbenchmark.com/static/leaderboard.html)（中文）、[GSM8K](https://github.com/openai/grade-school-math)（数学）、[BBH](https://github.com/suzgunmirac/BIG-Bench-Hard)（英文） 上的测评结果。
+我们选取了部分中英文典型数据集进行了评测，以下为 ChatGLM2-6B 模型在 [MMLU](https://github.com/hendrycks/test) (英文)、[C-Eval](https://cevalbenchmark.com/static/leaderboard.html)（中文）、[GSM8K](https://github.com/openai/grade-school-math)（数学）、[BBH](https://github.com/suzgunmirac/BIG-Bench-Hard)（英文） 上的测评结果。在 [evaluation](./evaluation/README.md) 中提供了在 C-Eval 上进行测评的脚本。
 
 ### MMLU
 
@@ -165,6 +165,13 @@ cd ChatGLM2-6B
 git clone https://huggingface.co/THUDM/chatglm2-6b
 ```
 
+如果你从 Hugging Face Hub 上下载 checkpoint 的速度较慢，可以只下载模型实现
+```Shell
+GIT_LFS_SKIP_SMUDGE=1 git clone https://huggingface.co/THUDM/chatglm2-6b
+```
+然后从[这里](https://cloud.tsinghua.edu.cn/d/674208019e314311ab5c/)手动下载模型参数文件，并将下载的文件替换到本地的 `chatglm2-6b` 目录下。
+
+
 将模型下载到本地之后，将以上代码中的 `THUDM/chatglm2-6b` 替换为你本地的 `chatglm2-6b` 文件夹的路径，即可从本地加载模型。
 
 模型的实现仍然处在变动中。如果希望固定使用的模型实现以保证兼容性，可以在 `from_pretrained` 的调用中增加 `revision="v1.0"` 参数。`v1.0` 是当前最新的版本号，完整的版本列表参见 [Change Log](https://huggingface.co/THUDM/chatglm2-6b#change-log)。
@@ -180,7 +187,18 @@ python web_demo.py
 ```
 
 程序会运行一个 Web Server，并输出地址。在浏览器中打开输出的地址即可使用。
-> 由于国内 Gradio 的网络访问较为缓慢，启用 `demo.queue().launch(share=True, inbrowser=True)` 时所有网络会经过 Gradio 服务器转发，导致打字机体验大幅下降，现在默认启动方式已经改为 `share=False`，如有需要公网访问的需求，可以重新修改为 `share=True` 启动。
+> 默认使用了 `share=False` 启动，不会生成公网链接。如有需要公网访问的需求，可以修改为 `share=True` 启动。
+> 
+
+感谢 [@AdamBear](https://github.com/AdamBear) 实现了基于 Streamlit 的网页版 Demo `web_demo2.py`。使用时首先需要额外安装以下依赖：
+```shell
+pip install streamlit streamlit-chat
+```
+然后通过以下命令运行：
+```shell
+streamlit run web_demo2.py
+```
+经测试，如果输入的 prompt 较长的话，使用基于 Streamlit 的网页版 Demo 会更流畅。
 
 ### 命令行 Demo
 
@@ -214,6 +232,28 @@ curl -X POST "http://127.0.0.1:8000" \
   "time":"2023-03-23 21:38:40"
 }
 ```
+感谢 [@hiyouga]() 实现了 OpenAI 格式的流式 API 部署，可以作为任意基于 ChatGPT 的应用的后端，比如 [ChatGPT-Next-Web](https://github.com/Yidadaa/ChatGPT-Next-Web)。可以通过运行仓库中的[openai_api.py](openai_api.py) 进行部署：
+```shell
+python openai_api.py
+```
+进行 API 调用的示例代码为
+```python
+import openai
+if __name__ == "__main__":
+    openai.api_base = "http://localhost:8000/v1"
+    openai.api_key = "none"
+    for chunk in openai.ChatCompletion.create(
+        model="chatglm2-6b",
+        messages=[
+            {"role": "user", "content": "你好"}
+        ],
+        stream=True
+    ):
+        if hasattr(chunk.choices[0].delta, "content"):
+            print(chunk.choices[0].delta.content, end="", flush=True)
+```
+
+
 ## 低成本部署
 
 ### 模型量化
@@ -258,6 +298,14 @@ model = AutoModel.from_pretrained("your local path", trust_remote_code=True).to(
 加载半精度的 ChatGLM2-6B 模型需要大概 13GB 内存。内存较小的机器（比如 16GB 内存的 MacBook Pro），在空余内存不足的情况下会使用硬盘上的虚拟内存，导致推理速度严重变慢。
 此时可以使用量化后的模型 chatglm2-6b-int4。因为 GPU 上量化的 kernel 是使用 CUDA 编写的，因此无法在 MacOS 上使用，只能使用 CPU 进行推理。
 为了充分使用 CPU 并行，还需要[单独安装 OpenMP](FAQ.md#q1)。
+
+### 多卡部署
+如果你有多张 GPU，但是每张 GPU 的显存大小都不足以容纳完整的模型，那么可以将模型切分在多张GPU上。首先安装 accelerate: `pip install accelerate`，然后通过如下方法加载模型：
+```python
+from utils import load_model_on_gpus
+model = load_model_on_gpus("THUDM/chatglm2-6b", num_gpus=2)
+```
+即可将模型部署到两张 GPU 上进行推理。你可以将 `num_gpus` 改为你希望使用的 GPU 数。默认是均匀切分的，你也可以传入 `device_map` 参数来自己指定。 
 
 ## 协议
 
