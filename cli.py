@@ -22,7 +22,7 @@ def loadHistory(conversation_key):
 def main():
     history = []
     query = sys.argv[1]
-
+    query = query.replace("NNN", "\n")
     conversation_key = ""
     if len(sys.argv)>=3:
         conversation_key = sys.argv[2]
