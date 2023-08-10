@@ -21,21 +21,28 @@ def loadHistory(conversation_key):
 
 def main():
     history = []
-    query = sys.argv[1]
-    query = query.replace("NNN", "\n")
-    conversation_key = ""
-    if len(sys.argv)>=3:
-        conversation_key = sys.argv[2]
-        history = loadHistory(conversation_key)
+    query_file = sys.argv[1]
 
-    response, history = model.chat(tokenizer, query, history=history)
-    # print(history)
+    if os.path.exists(f"/var/pyproj/ChatGLM2-6B/history/tmp/" + query_file):
+        with open(f"/var/pyproj/ChatGLM2-6B/history/tmp/" + query_file, "r", encoding="utf-8") as f:
+            query = f.read()
+            query = json.loads(query)
 
-    if conversation_key!="":
-        saveHistory(conversation_key,history)
+            conversation_key = ""
+            if 'key' in query:
+                conversation_key = query['key']
+                history = loadHistory(conversation_key)
 
-    # os.system("clear")
-    print("output:"+response)
+            query_text = query['text']
+
+            response, history = model.chat(tokenizer, query_text, history=history)
+            # print(history)
+
+            if conversation_key != "":
+                saveHistory(conversation_key, history)
+
+            # os.system("clear")
+            print("output:" + response)
 
 
 if __name__ == "__main__":
